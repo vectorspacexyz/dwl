@@ -127,10 +127,10 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 /* commands */
 static const char *termcmd[] = { "kitty", NULL };
 static const char *menucmd[] = { "wmenu-run", NULL };
-static const char *screenshot[]  = { "screenshot.sh", NULL };
-static const char *incvol[]  = { "inc-volume.sh", NULL };
-static const char *decvol[]  = { "dec-volume.sh", NULL };
-static const char *switchaudio[]  = { "switch_audio_sink.sh", NULL };
+static const char *screenshot[]  = { "/home/vector/admin/dwl/bin/screenshot.sh", NULL };
+static const char *incvol[]  = { "/home/vector/admin/dwl/bin/inc-volume.sh", NULL };
+static const char *decvol[]  = { "/home/vector/admin/dwl/bin/dec-volume.sh", NULL };
+static const char *switchaudio[]  = { "/home/vector/admin/dwl/bin/switch_audio_sink.sh", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
