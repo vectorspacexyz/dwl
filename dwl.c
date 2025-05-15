@@ -1601,96 +1601,101 @@ drawstatus(Monitor *m)
 {
     int x, tw, iw;
     char rstext[512] = "";
-    char *p, *tagstart, *tagend, *colorstart, *colorend, *itext;
+    char *p, *argstart, *argend, *itext;
     uint32_t scheme[3], *color;
-    
+    char colorstr[10]; // Buffer to hold color string
+
     /* calculate real width of stext */
     for (p = stext; *p; p++) {
-        if (PREFIX(p, "<fc=")) {
-            tagend = strchr(p, '>');
-            if (!tagend) { /* ignore this command */
-                strncat(rstext, p, 1);
+        if (PREFIX(p, "^^")) {
+            strncat(rstext, p, 2);
+            p++;
+        } else if (PREFIX(p, "^fg(") || PREFIX(p, "^bg(")) {
+            argend = strchr(p, ')');
+            if (!argend) { /* ignore this command */
+                argstart = strchr(p, '(') + 1;
+                strncat(rstext, p, argstart - p);
+                p = argstart - 1;
             } else {
-                p = tagend;
+                p = argend;
             }
-        } else if (PREFIX(p, "</fc>")) {
-            p += 4; /* skip over "</fc>" */
         } else {
             strncat(rstext, p, 1);
         }
     }
-    
+
     tw = TEXTW(m, rstext) - m->lrpad;
     x = m->b.width - tw;
     itext = stext;
     scheme[0] = colors[SchemeNorm][0];
     scheme[1] = colors[SchemeNorm][1];
     drwl_setscheme(m->drw, scheme);
-    
+
     for (p = stext; *p; p++) {
-        if (PREFIX(p, "<fc=")) {
-            tagstart = p;
-            tagend = strchr(p, '>');
-            if (!tagend) { /* ignore this tag */
+        if (PREFIX(p, "^^")) {
+            p++;
+        } else if (PREFIX(p, "^fg(") || PREFIX(p, "^bg(")) {
+            argstart = strchr(p, '(') + 1;
+            argend = strchr(argstart, ')');
+            if (!argend) { /* ignore this command */
+                p = argstart - 1;
                 continue;
             }
-            
-            /* Get the color value between = and > */
-            colorstart = strchr(p, '=') + 1;
-            colorend = tagend;
-            
-            /* Draw existing text before changing color */
-            *tagstart = '\0';
+
+            /* Draw text before color change */
+            *p = '\0';
             iw = TEXTW(m, itext) - m->lrpad;
             if (*itext) /* only draw text if there is something to draw */
                 x = drwl_text(m->drw, x, 0, iw, m->b.height, 0, itext, 0);
-            *tagstart = '<';
-            
-            /* Set new color */
-            color = &scheme[0]; /* Set foreground color */
-            if (colorend != colorstart) {
-                /* Temporarily null-terminate the color string */
-                *colorend = '\0';
-                /* Skip the '#' character if present */
-                if (*colorstart == '#')
-                    colorstart++;
-                *color = strtoul(colorstart, NULL, 16);
-                *color = *color << 8 | 0xff; /* add alpha channel */
-                *colorend = '>';
+            *p = '^';
+
+            /* Determine which color to change */
+            if (PREFIX(p, "^fg("))
+                color = &scheme[0];
+            else
+                color = &scheme[1];
+
+            if (argend != argstart) {
+                /* Copy color string to buffer to ensure it's properly parsed */
+                size_t color_len = argend - argstart;
+                if (color_len >= sizeof(colorstr))
+                    color_len = sizeof(colorstr) - 1;
+
+                strncpy(colorstr, argstart, color_len);
+                colorstr[color_len] = '\0';
+
+                /* Process the color string */
+                uint32_t parsed_color = strtoul(colorstr, NULL, 16);
+
+                /* Apply alpha channel - adjust bit-shifting based on color format */
+                /* For RGB format (6 hex digits like FF0000) */
+                if (color_len <= 6) {
+                    *color = (parsed_color << 8) | 0xFF; /* RGB → RGBA */
+                } else {
+                    /* For RGBA format (8 hex digits) */
+                    *color = parsed_color;
+                }
+            } else {
+                *color = 0; /* reset */
             }
-            
+
             /* reset color back to normal if none was provided */
             if (!scheme[0])
                 scheme[0] = colors[SchemeNorm][0];
             if (!scheme[1])
                 scheme[1] = colors[SchemeNorm][1];
-                
+
+            itext = argend + 1;
             drwl_setscheme(m->drw, scheme);
-            itext = tagend + 1;
-            p = tagend;
-        } else if (PREFIX(p, "</fc>")) {
-            /* Draw text with current color before resetting */
-            *p = '\0';
-            iw = TEXTW(m, itext) - m->lrpad;
-            if (*itext)
-                x = drwl_text(m->drw, x, 0, iw, m->b.height, 0, itext, 0);
-            *p = '<';
-            
-            /* Reset to default color */
-            scheme[0] = colors[SchemeNorm][0];
-            scheme[1] = colors[SchemeNorm][1];
-            drwl_setscheme(m->drw, scheme);
-            
-            itext = p + 5; /* skip past "</fc>" */
-            p += 4; /* p will be incremented in the loop */
+            p = argend;
         }
     }
-    
+
     /* Draw any remaining text */
     iw = TEXTW(m, itext) - m->lrpad;
     if (*itext)
         drwl_text(m->drw, x, 0, iw, m->b.height, 0, itext, 0);
-    
+
     return tw;
 }
 
